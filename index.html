@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Third Time</title>
+    <style>
+        body { font-family: Arial, sans-serif; text-align: center; }
+        #timer { font-size: 2em; margin: 20px; }
+        #log { margin-top: 20px; text-align: left; display: inline-block; }
+    </style>
+</head>
+<body>
+    <h1>Third Time</h1>
+    <div>
+        <label for="ratio">Select Work/Break Ratio:</label>
+        <select id="ratio">
+            <option value="2">1:2 Working 1/2 of the time. Laid back</option>
+            <option value="3" selected>1:3 Working 3/4 of the time. Standard</option>
+            <option value="4">1:4 Working 4/5 of the time. Industrious</option>
+            <option value="5">1:5 Working 5/6 of the time. Hard</option>
+            <option value="6">1:6 Working 6/7 of the time. Grinding</option>
+        </select>
+    </div>
+    <div id="timer">00:00:00</div>
+    <button id="startWorking">Start Working</button>
+    <button id="resumeWorking" style="display:none;">Resume Working</button>
+    <button id="endWorking" disabled>End Working</button>
+    <button id="startBreak" disabled>Start Break</button>
+    <button id="endBreak" disabled>End Break</button>
+    <button id="bigBreak" disabled>Big Break</button>
+    <button id="clearLog">Clear Log</button>
+    <div id="breakTime">Banked Break Time: 0 seconds</div>
+    <div id="log"></div>
+    <script>
+        let workStartTime, breakStartTime, workDuration = 0, bankedBreakTime = 0, breakDuration = 0;
+        let workTimer, breakTimer;
+        let workBreakRatio = 3;
+
+        // Load banked break time from localStorage
+        if (localStorage.getItem('bankedBreakTime')) {
+            bankedBreakTime = parseFloat(localStorage.getItem('bankedBreakTime'));
+            updateBreakTimeDisplay();
+        }
+
+        document.getElementById('startWorking').addEventListener('click', () => {
+            logEvent('Start Working');
+            clearInterval(workTimer);
+            workStartTime = Date.now();
+            workTimer = setInterval(updateWorkTimer, 1000);
+            document.getElementById('startWorking').disabled = true;
+            document.getElementById('resumeWorking').style.display = 'none';
+            document.getElementById('endWorking').disabled = false;
+            document.getElementById('timer').innerText = "00:00:00";
+        });
+
+        document.getElementById('resumeWorking').addEventListener('click', () => {
+            logEvent('Resume Working');
+            clearInterval(workTimer);
+            workStartTime = Date.now();
+            workTimer = setInterval(updateWorkTimer, 1000);
+            document.getElementById('resumeWorking').style.display = 'none';
+            document.getElementById('startBreak').disabled = true;
+            document.getElementById('bigBreak').disabled = true;
+            document.getElementById('endWorking').disabled = false;
+        });
+
+        document.getElementById('endWorking').addEventListener('click', () => {
+            logEvent('End Working');
+            clearInterval(workTimer);
+            workDuration = (Date.now() - workStartTime) / 1000;
+            breakDuration = workDuration / workBreakRatio;
+            bankedBreakTime += breakDuration;
+            updateBreakTimeDisplay();
+            document.getElementById('endWorking').disabled = true;
+            document.getElementById('startBreak').disabled = false;
+            document.getElementById('bigBreak').disabled = false;
+            document.getElementById('resumeWorking').style.display = 'inline-block';
+        });
+
+        document.getElementById('startBreak').addEventListener('click', () => {
+            logEvent('Start Break');
+            clearInterval(breakTimer);
+            breakStartTime = Date.now();
+            breakTimer = setInterval(updateBreakTimer, 1000);
+            document.getElementById('startBreak').disabled = true;
+            document.getElementById('endBreak').disabled = false;
+        });
+
+        document.getElementById('endBreak').addEventListener('click', () => {
+            const breakTime = (Date.now() - breakStartTime) / 1000;
+            logEvent('End Break');
+            logBreak(breakTime);
+            clearInterval(breakTimer);
+            bankedBreakTime -= breakTime;
+            if (bankedBreakTime < 0) bankedBreakTime = 0;
+            updateBreakTimeDisplay();
+            document.getElementById('endBreak').disabled = true;
+            document.getElementById('bigBreak').disabled = true;
+            document.getElementById('startWorking').disabled = false;
+            document.getElementById('resumeWorking').style.display = 'none';
+            document.getElementById('timer').innerText = "00:00:00";
+        });
+
+        document.getElementById('bigBreak').addEventListener('click', () => {
+            logEvent('Big Break');
+            clearInterval(breakTimer);
+            const breakTime = bankedBreakTime;
+            logBreak(breakTime);
+            bankedBreakTime = 0;
+            updateBreakTimeDisplay();
+            document.getElementById('endBreak').disabled = true;
+            document.getElementById('bigBreak').disabled = true;
+            document.getElementById('startWorking').disabled = false;
+            document.getElementById('resumeWorking').style.display = 'none';
+            document.getElementById('timer').innerText = "00:00:00";
+        });
+
+        document.getElementById('ratio').addEventListener('change', (event) => {
+            workBreakRatio = parseInt(event.target.value);
+        });
+
+        document.getElementById('clearLog').addEventListener('click', () => {
+            if (confirm('Are you sure you want to clear the log?')) {
+                localStorage.removeItem('breakLog');
+                localStorage.removeItem('eventLog');
+                localStorage.removeItem('bankedBreakTime');
+                displayLog();
+                bankedBreakTime = 0;
+                updateBreakTimeDisplay();
+            }
+        });
+
+        function updateWorkTimer() {
+            const elapsed = Math.floor((Date.now() - workStartTime) / 1000);
+            document.getElementById('timer').innerText = formatTime(elapsed);
+        }
+
+        function updateBreakTimer() {
+            const elapsed = (Date.now() - breakStartTime) / 1000;
+            if (elapsed >= bankedBreakTime) {
+                clearInterval(breakTimer);
+                logBreak(bankedBreakTime);
+                logEvent('Break Over');
+                bankedBreakTime = 0;
+                updateBreakTimeDisplay();
+                document.getElementById('startWorking').disabled = false;
+                document.getElementById('resumeWorking').style.display = 'none';
+                document.getElementById('endBreak').disabled = true;
+                document.getElementById('bigBreak').disabled = true;
+                document.getElementById('timer').innerText = "00:00:00";
+                notify('Break time is over. Time to get back to work!');
+            } else {
+                document.getElementById('timer').innerText = formatTime(bankedBreakTime - elapsed);
+            }
+        }
+
+        function updateBreakTimeDisplay() {
+            document.getElementById('breakTime').innerText = "Banked Break Time: " + Math.round(bankedBreakTime) + " seconds";
+            localStorage.setItem('bankedBreakTime', bankedBreakTime.toString());
+        }
+
+        function formatTime(seconds) {
+            const hrs = Math.floor(seconds / 3600);
+            const mins = Math.floor((seconds % 3600) / 60);
+            const secs = Math.floor(seconds % 60);
+            return `${hrs.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+        }
+
+        function logBreak(breakTime) {
+            const log = JSON.parse(localStorage.getItem('breakLog')) || [];
+            log.unshift({
+                time: new Date().toLocaleString(),
+                duration: Math.round(breakTime)
+            });
+            localStorage.setItem('breakLog', JSON.stringify(log));
+            displayLog();
+        }
+
+        function logEvent(event) {
+            const log = JSON.parse(localStorage.getItem('eventLog')) || [];
+            log.unshift({
+                time: new Date().toLocaleString(),
+                event: event
+            });
+            localStorage.setItem('eventLog', JSON.stringify(log));
+            displayLog();
+        }
+
+        function displayLog() {
+            const log = JSON.parse(localStorage.getItem('breakLog')) || [];
+            const eventLog = JSON.parse(localStorage.getItem('eventLog')) || [];
+            const logDiv = document.getElementById('log');
+            logDiv.innerHTML = "<h2>Event Log</h2>";
+            eventLog.forEach(entry => {
+                logDiv.innerHTML += `<p>${entry.time} - Event: ${entry.event}</p>`;
+            });
+            logDiv.innerHTML += "<h2>Break Log</h2>";
+            log.forEach(entry => {
+                logDiv.innerHTML += `<p>${entry.time} - Break Duration: ${entry.duration} seconds</p>`;
+            });
+        }
+
+        // Display log on page load
+        displayLog();
+
+        // Request notification permission on page load
+        if (Notification.permission !== 'granted') {
+            Notification.requestPermission().then(permission => {
+                if (permission === 'granted') {
+                    new Notification("Notifications have been enabled.");
+                }
+            });
+        }
+
+        // Function to send notification
+        function notify(message) {
+            if (Notification.permission === 'granted') {
+                new Notification(message);
+            } else {
+                alert(message);
+            }
+        }
+    </script>
+</body>
+</html>
