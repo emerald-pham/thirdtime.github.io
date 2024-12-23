@@ -1,8 +1,8 @@
 # thirdtime.github.io
 
-Feel free to fork me and keep making it better! Generated initially (and wholly) using ChatGPT 4o. 
+A GPT4o generated website executing the third time concept.
 
-# Future possible features
+# Future desired  features
 
 - PWA Support
 - Mobile Notification Support
